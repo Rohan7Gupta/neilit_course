@@ -41,7 +41,7 @@ module AHBLITE_SYS(
     input       wire            RESET, 
     
     //TO BOARD LEDs
-    output      wire    [7:0]   LED,
+    output      wire    [15:0]   LED,
 
     // Debug
     input       wire            TCK_SWCLK,               // SWD Clk / JTAG TCK
@@ -73,14 +73,20 @@ wire [3:0] 		MUX_SEL;
 
 wire 			HSEL_MEM;
 wire 			HSEL_LED;
+wire            HSEL_SIGNLERAM;
+wire 			HSEL_TIMER;
 
 //SLAVE READ DATA
 wire [31:0] 	HRDATA_MEM;
 wire [31:0] 	HRDATA_LED;
+wire [31:0] 	HRDATA_SINGLERAM;//SINGLE PORT MEMORY
+wire [31:0] 	HRDATA_TIMER;
 
 //SLAVE HREADYOUT
 wire 			HREADYOUT_MEM;
 wire 			HREADYOUT_LED;
+wire 			HREADYOUT_SIGNLERAM;
+wire 			HREADYOUT_TIMER;
 
 //CM0-DS Sideband signals
 wire [31:0]		IRQ;
@@ -94,7 +100,8 @@ wire            sys_reset_req;
 assign 			HRESP = 1'b0;
 
 // Interrupt signals
-assign          IRQ = 32'h00000000;
+wire            TIMER_IRQ;
+assign          IRQ = {24'h000000,7'b000000,TIMER_IRQ};
 
 // Clock
 wire            fclk;                 // Free running clock
@@ -223,10 +230,10 @@ AHBDCD uAHBDCD (
 	.HSEL_S0(HSEL_MEM),
 	.HSEL_S1(HSEL_LED),
     .HSEL_S2(),
-    .HSEL_S3(),
+    .HSEL_S3(HSEL_TIMER),
     .HSEL_S4(),
     .HSEL_S5(),
-    .HSEL_S6(),
+    .HSEL_S6(HSEL_SINGLERAM),
     .HSEL_S7(),
     .HSEL_S8(),
     .HSEL_S9(),
@@ -245,10 +252,10 @@ AHBMUX uAHBMUX (
 	.HRDATA_S0(HRDATA_MEM),
 	.HRDATA_S1(HRDATA_LED),
 	.HRDATA_S2(32'h00000000),
-	.HRDATA_S3(32'h00000000),
+	.HRDATA_S3(HRDATA_TIMER),
 	.HRDATA_S4(32'h00000000),
 	.HRDATA_S5(32'h00000000),
-	.HRDATA_S6(32'h00000000),
+	.HRDATA_S6(HRDATA_SINGLERAM),
 	.HRDATA_S7(32'h00000000),
 	.HRDATA_S8(32'h00000000),
 	.HRDATA_S9(32'h00000000),
@@ -257,10 +264,10 @@ AHBMUX uAHBMUX (
 	.HREADYOUT_S0(HREADYOUT_MEM),
 	.HREADYOUT_S1(HREADYOUT_LED),
 	.HREADYOUT_S2(1'b1),
-	.HREADYOUT_S3(1'b1),
+	.HREADYOUT_S3(HREADYOUT_TIMER),
 	.HREADYOUT_S4(1'b1),
 	.HREADYOUT_S5(1'b1),
-	.HREADYOUT_S6(1'b1),
+	.HREADYOUT_S6(HREADYOUT_SINGLERAM),
 	.HREADYOUT_S7(1'b1),
 	.HREADYOUT_S8(1'b1),
 	.HREADYOUT_S9(1'b1),
@@ -306,10 +313,40 @@ AHB2LED uAHB2LED (
     .HRDATA(HRDATA_LED),
     .HREADYOUT(HREADYOUT_LED),
 
-    .LED(LED[7:0])
+    .LED(LED[15:0])
 );
 
+AHBSINGLERAM uAHBSINGLERAM (
+    //AHBLITE Signals
+    .CS(HSEL_SINGLERAM),
+    .CLK(HCLK),
+    .HRESETn(HRESETn),
+    .HREADY(HREADY),
+    .ADDRESS(HADDR),
+    .HTRANS(HTRANS),
+    .WE(HWRITE),
+    .HSIZE(HSIZE),
+    .DATA_IN(HWDATA),
+    
+    .DATA_OUT(HRDATA_SINGLERAM),
+    .HREADYOUT(HREADYOUT_SINGLERAM)
 
+);
+
+AHBTIMER uAHBTIMER(
+	.HCLK(HCLK),
+	.HRESETn(HRESETn),
+	.HADDR(HADDR),
+	.HWDATA(HWDATA),
+	.HREADY(HREADY),
+	.HWRITE(HWRITE),
+	.HTRANS(HTRANS),
+    
+	.HSEL(HSEL_TIMER),
+	.HRDATA(HRDATA_TIMER[31:0]),
+	.HREADYOUT(HREADYOUT_TIMER),
+    
+	.timer_irq(TIMER_IRQ) //this statement is commented in timer only
+	);
 
 endmodule
-
